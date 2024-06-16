@@ -12,41 +12,41 @@ Comprehensive guide on building an intelligent web application, which can extrac
 
 ![Untitled (4)](https://github.com/Soorya-Narayan/Intelligent-data-mining-app-using-streamlit/assets/118114664/16d542c2-dd7c-416a-93f5-cc85ce774328)
 
-1. Input Collection:
+1. Input Collection :
 
 - Collect various data types (text, images, documents, audio, video) from sources like web URLs.
-2. Data Chunking:
+2. Data Chunking :
 
 - Divide the collected data into smaller chunks.
-3. Embedding Generation:
+3. Embedding Generation :
 
 - Convert each chunk type into embeddings (numerical representations).
-4. Embedding Storage:
+4. Embedding Storage :
 
 - Store all embeddings in a vector database.
-5. Question Embedding:
+5. Question Embedding :
 
 - Convert user questions into embeddings.
-6. Similarity Search:
+6. Similarity Search :
 
 - Perform a similarity search in the vector database using the question embedding.
-7. Answer Generation:
+7. Answer Generation :
 
 - Use a Language Model (LLM) to generate and rank answers from the relevant data embeddings, then present the results to the user.
 ## Setting up Python virtual environment
 Creating virtual environment.
-First, open a new folder in VSCode and add a new terminal. Run the following command to create a virtual environment:
+First, open a new folder in VSCode and add a new terminal. Run the following command to create a virtual environment :
 
 ```bash
 python -m venv chat_venv
 ```
 Activating the virtual environment.
-Activate the virtual environment using:
+Activate the virtual environment using :
 ```bash
 chat_venv\Scripts\activate
 ```
 ## Installing necessary libraries.
-Create a ```requirements.txt``` file and add the following libraries:
+Create a ```requirements.txt``` file and add the following libraries :
 
 ```txt
 streamlit
