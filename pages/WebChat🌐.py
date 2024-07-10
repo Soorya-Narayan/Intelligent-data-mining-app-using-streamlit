@@ -1,83 +1,92 @@
 import os
-
 import streamlit as st
 from dotenv import load_dotenv
-from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatOpenAI
+from langchain_core.messages import AIMessage, HumanMessage
+from PIL import Image
+import google.generativeai as genai
 from langchain.document_loaders import WebBaseLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts.chat import (ChatPromptTemplate,
-                                     HumanMessagePromptTemplate,
-                                     SystemMessagePromptTemplate)
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import Chroma
 
-# Load environment variables from .env file (Optional)
+# Load environment variables from .env file
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Configure the Google API key
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-system_template = """Use the following pieces of context to answer the users question.
-If you don't know the answer, just say that you don't know, don't try to make up an answer.
-"""
+# Define the prompt template
+prompt_template = """You are a web blog summarizer. You will be taking the content of a web page 
+and summarizing the entire content and providing the important summary in points within 250 words. 
+Please provide the summary of the text given here: """
 
-messages = [
-    SystemMessagePromptTemplate.from_template(system_template),
-    HumanMessagePromptTemplate.from_template("{question}"),
-]
-prompt = ChatPromptTemplate.from_messages(messages)
-chain_type_kwargs = {"prompt": prompt}
+def extract_web_content(url):
+    try:
+        loader = WebBaseLoader(url)
+        data = loader.load()
+        content = ""
+        for doc in data:
+            content += " " + doc.page_content
+        return content
+    except Exception as e:
+        raise e
 
+# Function to get response from Gemini API
+def get_gemini_response(input_text, image=None):
+    model = genai.GenerativeModel('gemini-pro')
+    if input_text and image:
+        response = model.generate_content([input_text, image])
+    elif input_text:
+        response = model.generate_content(input_text)
+    else:
+        response = model.generate_content(image)
+    return response.text
 
 def main():
     # Set the title and subtitle of the app
     st.set_page_config(page_title="WebChat", page_icon="🌐")
     st.title('WebChat🌐')
     
-    url = st.text_input("", placeholder="Insert website url here")
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = [
+            AIMessage(content="Hello, How can I help you?"),
+        ]
+
+    url = st.text_input("", placeholder="Insert website URL here")
 
     # Process the URL as soon as entered
     if url:
-        ABS_PATH: str = os.path.dirname(os.path.abspath(__file__))
-        DB_DIR: str = os.path.join(ABS_PATH, "db")
+        content_text = extract_web_content(url)
+        if content_text:
+            summary = get_gemini_response(prompt_template + content_text)
+            st.markdown("## Detailed Notes:")
+            st.write(summary)
+            st.session_state.chat_history.append(AIMessage(content=summary))
 
-        # Load data from the specified URL
-        loader = WebBaseLoader(url)
-        data = loader.load()
+    # Display chat history
+    for message in st.session_state.chat_history:
+        if isinstance(message, AIMessage):
+            with st.chat_message("AI"):
+                st.write(message.content)
+        elif isinstance(message, HumanMessage):
+            with st.chat_message("Human"):
+                st.write(message.content)
 
-        # Split the loaded data
-        text_splitter = CharacterTextSplitter(separator='\n',
-                                              chunk_size=500,
-                                              chunk_overlap=40)
+    # User input
+    user_query = st.chat_input("Type your message here...")
+    
+    image = None
 
-        docs = text_splitter.split_documents(data)
+    
 
-        # Create OpenAI embeddings
-        openai_embeddings = OpenAIEmbeddings()
+    if user_query is not None and user_query != "":
+        st.session_state.chat_history.append(HumanMessage(content=user_query))
 
-        # Create a Chroma vector database from the documents
-        vectordb = Chroma.from_documents(documents=docs,
-                                         embedding=openai_embeddings,
-                                         persist_directory=DB_DIR)
+        with st.chat_message("Human"):
+            st.markdown(user_query)
 
-        vectordb.persist()
+        with st.chat_message("AI"):
+            response_text = get_gemini_response(user_query, image)
+            st.write(response_text)
 
-        # Create a retriever from the Chroma vector database
-        retriever = vectordb.as_retriever(search_kwargs={"k": 3})
-
-        # Use a ChatOpenAI model
-        llm = ChatOpenAI(model_name='gpt-3.5-turbo')
-
-        # Create a RetrievalQA from the model and retriever
-        qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
-
-        prompt = st.text_input("Ask a question (query/prompt)", key="user_query")  # Use a unique key to avoid conflicts
-
-        # Run the prompt and return the response only if a question is entered
-        if prompt:
-            response = qa(prompt)
-            st.write(response)
-
+        st.session_state.chat_history.append(AIMessage(content=response_text))
 
 if __name__ == '__main__':
     main()
