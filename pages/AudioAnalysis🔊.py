@@ -1,36 +1,39 @@
 import streamlit as st
-import torch
-from transformers import pipeline
+from google.cloud import speech_v1p1beta1 as speech
 import librosa
 import io
+import os
 
 # Function to convert audio bytes to array
 def convert_bytes_to_array(audio_bytes):
     audio_bytes = io.BytesIO(audio_bytes)
     audio, sample_rate = librosa.load(audio_bytes)
-    return audio
+    return audio, sample_rate
 
-# Function to transcribe audio
+# Function to transcribe audio using Google Speech-to-Text
 def transcribe_audio(audio_bytes):
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-
-    # Initialize the speech recognition pipeline
-    pipe = pipeline(
-        task="automatic-speech-recognition",
-        model="openai/whisper-small",
-        device=device,
-    )
+    client = speech.SpeechClient()
 
     # Convert audio bytes to array
-    audio_array = convert_bytes_to_array(audio_bytes)
-    
+    audio_array, sample_rate = convert_bytes_to_array(audio_bytes)
+
+    # Prepare the audio for Google Speech-to-Text
+    audio = speech.RecognitionAudio(content=audio_bytes.getvalue())
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=sample_rate,
+        language_code="en-US",
+    )
+
     # Transcribe audio
-    prediction = pipe(audio_array)["text"]
+    response = client.recognize(config=config, audio=audio)
 
-    # Print the transcription in the terminal
-    print("Transcription:", prediction)
+    # Extract the transcription
+    transcription = ""
+    for result in response.results:
+        transcription += result.alternatives[0].transcript
 
-    return prediction
+    return transcription
 
 def main():
     st.set_page_config(page_title="AudioAnalysis", page_icon="🔊")
@@ -44,9 +47,11 @@ def main():
 
         # Button to transcribe audio
         if st.button("Transcribe"):
-            transcribed_text = transcribe_audio(uploaded_audio.getvalue())
+            transcribed_text = transcribe_audio(uploaded_audio)
             st.write("Transcribed Text:")
             st.write(transcribed_text)
 
 if __name__ == "__main__":
+    # Set the environment variable for Google Application Credentials
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "path/to/your/service-account-file.json"
     main()
